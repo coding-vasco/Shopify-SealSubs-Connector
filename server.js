@@ -124,8 +124,13 @@ app.post('/flow/order-created', async (req, res) => {
       tagResults
     });
   } catch (err) {
-    console.error('flow/order-created error', err);
-    return res.status(500).json({ error: 'Server error' });
+     console.error('flow/order-created error', err);
+     const body = { error: 'Server error' };
+     if (process.env.DEBUG_ERRORS === 'true') {
+       body.details = String(err?.message || err);
+       body.stack = (err?.stack || '').split('\n').slice(0,3);
+     }
+     return res.status(500).json(body);
   }
 });
 
@@ -133,20 +138,23 @@ app.post('/flow/order-created', async (req, res) => {
 async function sealSearchByEmail(email, sealToken) {
   const url = `https://app.sealsubscriptions.com/shopify/merchant/api/subscriptions?query=${encodeURIComponent(email)}&active-only=false&page=1`;
   const resp = await fetch(url, { headers: { 'X-Seal-Token': sealToken, 'Accept': 'application/json' } });
-  if (!resp.ok) throw new Error(`Seal search failed: ${resp.status}`);
-  const data = await resp.json();
-  // API returns an array [{ id, ... }]; normalize
+  const text = await resp.text();
+  if (!resp.ok) throw new Error(`Seal search failed ${resp.status}: ${text.slice(0,300)}`);
+  const data = safeJson(text);
   return Array.isArray(data) ? data : (data?.payload ?? []);
 }
 
 async function sealGetById(id, sealToken) {
   const url = `https://app.sealsubscriptions.com/shopify/merchant/api/subscription?id=${encodeURIComponent(id)}`;
   const resp = await fetch(url, { headers: { 'X-Seal-Token': sealToken, 'Accept': 'application/json' } });
-  if (!resp.ok) throw new Error(`Seal get failed (${id}): ${resp.status}`);
-  const json = await resp.json();
+  const text = await resp.text();
+  if (!resp.ok) throw new Error(`Seal get failed (${id}) ${resp.status}: ${text.slice(0,300)}`);
+  const json = safeJson(text);
   // Some responses wrap in { success, payload }
   return json?.payload || json;
 }
+
+  function safeJson(text) { try { return JSON.parse(text); } catch { return {}; } }
 
 // ----- Shopify helpers -----
 async function ensureOrderContext({ shopDomain, orderId, orderName, customerId, email }, shopifyToken) {
