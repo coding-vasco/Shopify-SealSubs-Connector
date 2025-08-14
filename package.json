@@ -5,7 +5,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js"
+    "dev": "NODE_ENV=development DEBUG_ERRORS=true node server.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
